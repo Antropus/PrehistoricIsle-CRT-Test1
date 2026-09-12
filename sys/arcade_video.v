@@ -54,9 +54,19 @@ module arcade_video #(parameter WIDTH=320, DW=8, GAMMA=1)
 
 assign CLK_VIDEO = clk_video;
 
-wire hs_fix,vs_fix;
-sync_fix sync_v(CLK_VIDEO, HSync, hs_fix);
-sync_fix sync_h(CLK_VIDEO, VSync, vs_fix);
+// CRT_TEST_01 ---------------------------------------------------------------
+// The original core feeds HSync/VSync through the generic adaptive sync_fix
+// polarity detector clocked at CLK_VIDEO (72 MHz).  Prehistoric Isle is known
+// to be unusually sensitive on some CRTs.  For this diagnostic build, bypass
+// that adaptive detector and export deterministic active-low sync derived
+// directly from the native 6 MHz timing generator.
+//
+// Native video_timing.v generates active-high sync pulses. MiSTer analog RGBHV
+// conventionally uses active-low sync here, so invert explicitly.  Everything
+// else in arcade_video/video_mixer is unchanged.
+wire hs_fix = ~HSync;
+wire vs_fix = ~VSync;
+// ---------------------------------------------------------------------------
 
 reg [DW-1:0] RGB_fix;
 
