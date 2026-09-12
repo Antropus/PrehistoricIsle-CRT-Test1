@@ -6,26 +6,40 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: raetro/quartus:20.1
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Compile RBF with Quartus 20.1
-        run: quartus_sh --flow compile prehisle.qpf
-
-      - name: Stage test RBF
-        shell: bash
+      - name: Compile with Quartus 20.1
         run: |
-          set -e
-          mkdir -p artifact
-          test -f output_files/prehisle.rbf
-          cp output_files/prehisle.rbf artifact/prehisle_CRT_TEST_01.rbf
-          sha256sum artifact/prehisle_CRT_TEST_01.rbf | tee artifact/SHA256.txt
+          docker run --rm \
+            -v "${{ github.workspace }}:/build" \
+            -w /build \
+            raetro/quartus:20.1 \
+            quartus_sh --flow compile prehisle
 
-      - name: Upload test RBF
+      - name: Show generated files
+        if: always()
+        run: |
+          echo "=== RBF files ==="
+          find . -type f -iname "*.rbf" -print || true
+          echo "=== Output files ==="
+          find output_files -maxdepth 2 -type f -print 2>/dev/null || true
+
+      - name: Rename CRT test RBF
+        run: |
+          RBF=$(find . -type f -iname "prehisle.rbf" | head -1)
+          if [ -z "$RBF" ]; then
+            echo "ERROR: Quartus did not generate prehisle.rbf"
+            exit 1
+          fi
+
+          cp "$RBF" prehisle_CRT_TEST_01.rbf
+
+      - name: Upload CRT Test RBF
         uses: actions/upload-artifact@v4
         with:
           name: prehisle_CRT_TEST_01
-          path: artifact/
+          path: prehisle_CRT_TEST_01.rbf
           if-no-files-found: error
