@@ -614,22 +614,22 @@ pause #(8,8,8,72) pause
 wire [23:0] rgb_pause_out;
 wire dim_video;
 
-// CRT_TEST_02
-// Bypass arcade_video/video_mixer completely.
-// Feed native 6 MHz Prehistoric Isle video directly to MiSTer.
+arcade_video #(256,24) arcade_video
+(
+        .*,
 
-assign CLK_VIDEO = clk_sys;
-assign CE_PIXEL  = clk_6M;
+        .clk_video(clk_sys),
+        .ce_pix(clk_6M),
 
-assign VGA_R = rgb_pause_out[23:16];
-assign VGA_G = rgb_pause_out[15:8];
-assign VGA_B = rgb_pause_out[7:0];
+        .RGB_in(rgb_pause_out),
 
-assign VGA_HS = hsync;
-assign VGA_VS = vsync;
-assign VGA_DE = ~(hbl_delay | vbl_delay);
+        .HBlank(hbl_delay),
+        .VBlank(vbl_delay),
+        .HSync(hsync),
+        .VSync(vsync),
 
-assign VGA_SL = 3'b000;
+        .fx(scan_lines)
+);
 
 /*
     Phase Accumulator Increments (Fractional Size 32, look up size 8 bit, total 40 bits)

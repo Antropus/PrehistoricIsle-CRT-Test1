@@ -54,19 +54,9 @@ module arcade_video #(parameter WIDTH=320, DW=8, GAMMA=1)
 
 assign CLK_VIDEO = clk_video;
 
-// CRT_TEST_01 ---------------------------------------------------------------
-// The original core feeds HSync/VSync through the generic adaptive sync_fix
-// polarity detector clocked at CLK_VIDEO (72 MHz).  Prehistoric Isle is known
-// to be unusually sensitive on some CRTs.  For this diagnostic build, bypass
-// that adaptive detector and export deterministic active-low sync derived
-// directly from the native 6 MHz timing generator.
-//
-// Native video_timing.v generates active-high sync pulses. MiSTer analog RGBHV
-// conventionally uses active-low sync here, so invert explicitly.  Everything
-// else in arcade_video/video_mixer is unchanged.
-wire hs_fix = ~HSync;
-wire vs_fix = ~VSync;
-// ---------------------------------------------------------------------------
+wire hs_fix,vs_fix;
+sync_fix sync_v(CLK_VIDEO, HSync, hs_fix);
+sync_fix sync_h(CLK_VIDEO, VSync, vs_fix);
 
 reg [DW-1:0] RGB_fix;
 
@@ -120,6 +110,14 @@ assign VGA_SL  = sl[2:0];
 wire [2:0] sl = fx ? fx - 1'd1 : 3'd0;
 wire scandoubler = fx || forced_scandoubler;
 
+// CRT_TEST_03 ---------------------------------------------------------------
+// Keep rendering, RGB, pixel timing, blanking, scan doubler and mixer intact.
+// TEST ONLY: invert the final horizontal/vertical sync polarity after mixer.
+wire VGA_HS_mixer;
+wire VGA_VS_mixer;
+assign VGA_HS = ~VGA_HS_mixer;
+assign VGA_VS = ~VGA_VS_mixer;
+
 video_mixer #(.LINE_LENGTH(WIDTH+4), .HALF_DEPTH(DW!=24), .GAMMA(GAMMA)) video_mixer
 (
 	.CLK_VIDEO(CLK_VIDEO),
@@ -142,8 +140,8 @@ video_mixer #(.LINE_LENGTH(WIDTH+4), .HALF_DEPTH(DW!=24), .GAMMA(GAMMA)) video_m
 	.VGA_R(VGA_R),
 	.VGA_G(VGA_G),
 	.VGA_B(VGA_B),
-	.VGA_VS(VGA_VS),
-	.VGA_HS(VGA_HS),
+	.VGA_VS(VGA_VS_mixer),
+	.VGA_HS(VGA_HS_mixer),
 	.VGA_DE(VGA_DE)
 );
 
