@@ -21,7 +21,8 @@ module video_timing
     output reg  vsync,
 
     output reg  hbl,
-    output reg  vbl
+    output reg  vbl,
+    output reg  video_vbl
 );
 
 wire [8:0] h_ofs = 0;
@@ -34,9 +35,16 @@ wire [8:0] HTOTAL     = 383;
 wire [8:0] v_ofs = 0;
 wire [8:0] VBL_START  = 241;
 wire [8:0] VBL_END    = 17;
-wire [8:0] VS_START   = VBL_START + ( refresh_mod ? 20 : 10 ) + $signed(vs_offset);
-wire [8:0] VS_END     = VBL_START + ( refresh_mod ? 28 : 16 )+ $signed(vs_offset) + $signed(vs_width);
-wire [8:0] VTOTAL     = 288 - ( refresh_mod ? 0 : 25 );
+// CRT TEST 07: known-good ArcadeVGA target for this exact monitor/game.
+// External raster: 384 x 262 total at 6 MHz = 59.637 Hz.
+// 240-line external active window: lines 8..247.
+// External VSYNC: 3-line front porch, 3-line sync, 16-line back porch.
+// The game's own VBlank boundaries remain 241 -> 17 (224 active lines).
+wire [8:0] VIDEO_VBL_START = 248;
+wire [8:0] VIDEO_VBL_END   = 8;
+wire [8:0] VS_START        = 251 + $signed(vs_offset);
+wire [8:0] VS_END          = 254 + $signed(vs_offset) + $signed(vs_width);
+wire [8:0] VTOTAL          = 261;
 
 reg [8:0] v;
 reg [8:0] h;
@@ -51,6 +59,7 @@ always @ (posedge clk) begin
 
         hbl <= 0;
         vbl <= 0;
+        video_vbl <= 1;
 
         hsync <= 0;
         vsync <= 0;
@@ -74,11 +83,18 @@ always @ (posedge clk) begin
             hbl <= 0;
         end
 
-        // v signals
+        // Game VBlank: preserve original 224-line game window / IRQ behavior.
         if ( v == VBL_START ) begin
             vbl <= 1;
         end else if ( v == VBL_END ) begin
             vbl <= 0;
+        end
+
+        // External video blanking: expose a 240-line active raster to the display.
+        if ( v == VIDEO_VBL_START ) begin
+            video_vbl <= 1;
+        end else if ( v == VIDEO_VBL_END ) begin
+            video_vbl <= 0;
         end
 
         if ( v == (VS_START ) ) begin

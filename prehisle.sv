@@ -559,6 +559,7 @@ reg [23:0] rgb;
 
 wire hbl;
 wire vbl;
+wire video_vbl;
 
 wire [8:0] hc;
 wire [8:0] vc;
@@ -570,7 +571,9 @@ reg hbl_delay, vbl_delay;
 
 always @ ( posedge clk_6M ) begin
     hbl_delay <= hbl;
-    vbl_delay <= vbl;
+    // CRT TEST 07: video path uses the 240-line external blanking window.
+    // The game's CPU/IRQ logic continues to use the original 'vbl' signal.
+    vbl_delay <= video_vbl;
 end
 
 video_timing video_timing (
@@ -586,6 +589,7 @@ video_timing video_timing (
     .vc(vc),
     .hbl(hbl),
     .vbl(vbl),
+    .video_vbl(video_vbl),
     .hsync(hsync),
     .vsync(vsync)
     );
@@ -621,7 +625,9 @@ arcade_video #(256,24) arcade_video
         .clk_video(clk_sys),
         .ce_pix(clk_6M),
 
-        .RGB_in(rgb_pause_out),
+        // Game artwork is still the original 224-line image.
+        // The additional 16 active lines required by 256x240 are black border.
+        .RGB_in((vc >= 9'd17 && vc <= 9'd240) ? rgb_pause_out : 24'h000000),
 
         .HBlank(hbl_delay),
         .VBlank(vbl_delay),
