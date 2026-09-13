@@ -568,14 +568,16 @@ wire vsync;
 
 reg hbl_delay, vbl_delay;
 
-always @ ( posedge clk_6M ) begin
-    hbl_delay <= hbl;
-    vbl_delay <= vbl;
+always @ ( posedge clk_sys ) begin
+    if (clk_6M) begin
+        hbl_delay <= hbl;
+        vbl_delay <= vbl;
+    end
 end
 
 video_timing video_timing (
-    .clk(clk_6M),
-    .clk_pix(1'b1),
+    .clk(clk_sys),
+    .clk_pix(clk_6M),
     .reset(reset),
     .hs_offset(hs_offset),
     .vs_offset(vs_offset),
