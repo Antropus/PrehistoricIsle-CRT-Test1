@@ -1,7 +1,4 @@
 
-// CRT_TEST_04: ONLY raster/sync timing changed.
-// 384 H clocks x 260 V lines at 6.000 MHz = ~60.096 Hz.
-// Rendering, audio, controls, RGB path and arcade_video are untouched.
 module video_timing
 (
     input       clk,
@@ -30,16 +27,19 @@ module video_timing
 wire [8:0] h_ofs = 0;
 wire [8:0] HBL_START  = 256;
 wire [8:0] HBL_END    = 0;
-wire [8:0] HS_START   = HBL_START + 44 + $signed(hs_offset);
-wire [8:0] HS_END     = HBL_START + 76 + $signed(hs_offset) + $signed(hs_width);
+// CRT TEST 06: Kortek KT-2914 sync-only timing change. Raster totals unchanged.
+// 6 MHz pixel clock: 13-clock front porch (~2.17 us), 28-clock HSYNC (~4.67 us).
+wire [8:0] HS_START   = HBL_START + 13 + $signed(hs_offset);
+wire [8:0] HS_END     = HBL_START + 41 + $signed(hs_offset) + $signed(hs_width);
 wire [8:0] HTOTAL     = 383;
 
 wire [8:0] v_ofs = 0;
 wire [8:0] VBL_START  = 241;
 wire [8:0] VBL_END    = 17;
-wire [8:0] VS_START   = VBL_START + 10 + $signed(vs_offset);
-wire [8:0] VS_END     = VBL_START + 16 + $signed(vs_offset) + $signed(vs_width);
-wire [8:0] VTOTAL     = 259; // CRT_TEST_04: 260 lines -> ~60.096 Hz at 6 MHz / 384
+wire [8:0] VS_START   = VBL_START + ( refresh_mod ? 20 : 10 ) + $signed(vs_offset);
+// CRT TEST 06: 3-line VSYNC (~0.192 ms at 15.625 kHz).
+wire [8:0] VS_END     = VS_START + 3 + $signed(vs_width);
+wire [8:0] VTOTAL     = 288 - ( refresh_mod ? 0 : 25 );
 
 reg [8:0] v;
 reg [8:0] h;

@@ -124,27 +124,28 @@ module sys_top
 	inout   [6:0] USER_IO
 );
 
-//////////////////////  Secondary SD / 24-bit analog  //////////////////////
-// CRT_TEST_05: modern MiSTer 24-bit analog board support.
-// The legacy 18-bit VGA pins carry RGB[7:2]. On 24-bit analog boards,
-// the six SDIO pins carry the two low bits of R/G/B.
-wire SD_CS, SD_CLK, SD_MOSI, SD_MISO, SD_CD;
+//////////////////////  Secondary SD  ///////////////////////////////////
+wire SD_CS, SD_CLK, SD_MOSI;
 
 `ifndef MISTER_DUAL_SDRAM
-	wire sd_cd = SDCD_SPDIF & ~SW[2];
-	assign SD_CD       = mcp_en ? mcp_sdcd : sd_cd;
-	assign SD_MISO     = SD_CD | (mcp_en ? SD_SPI_MISO : (VGA_EN | SDIO_DAT[0]));
-	assign SD_SPI_CS   = mcp_en ? (mcp_sdcd ? 1'bZ : SD_CS) : (sog & ~cs1 & ~VGA_EN) ? 1'b1 : 1'bZ;
-	assign SD_SPI_CLK  = (~mcp_en | mcp_sdcd) ? 1'bZ : SD_CLK;
-	assign SD_SPI_MOSI = (~mcp_en | mcp_sdcd) ? 1'bZ : SD_MOSI;
-	assign {SDIO_CLK,SDIO_CMD,SDIO_DAT} = av_dis ? 6'bZZZZZZ : (mcp_en | sd_cd) ? {vga_g,vga_r,vga_b} : {SD_CLK,SD_MOSI,SD_CS,3'bZZZ};
+	wire sd_miso = SW[3] | SDIO_DAT[0];
 `else
-	assign SD_CD       = mcp_sdcd;
-	assign SD_MISO     = mcp_sdcd | SD_SPI_MISO;
-	assign SD_SPI_CS   = mcp_sdcd ? 1'bZ : SD_CS;
-	assign SD_SPI_CLK  = mcp_sdcd ? 1'bZ : SD_CLK;
-	assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ : SD_MOSI;
+	wire sd_miso = 1;
 `endif
+wire SD_MISO = mcp_sdcd ? sd_miso : SD_SPI_MISO;
+
+`ifndef MISTER_DUAL_SDRAM
+	assign SDIO_DAT[2:1]= 2'bZZ;
+	assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
+	assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
+	assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
+	assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
+`else
+	assign SD_SPI_CS    = mcp_sdcd ? 1'bZ : SD_CS;
+`endif
+
+assign SD_SPI_CLK  = mcp_sdcd ? 1'bZ : SD_CLK;
+assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ : SD_MOSI;
 
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
@@ -174,26 +175,17 @@ wire btn_r, btn_o, btn_u;
 
 wire [2:0] mcp_btn;
 wire       mcp_sdcd;
-wire       mcp_en;
-wire       mcp_mode;
 mcp23009 mcp23009
 (
 	.clk(FPGA_CLK2_50),
 
 	.btn(mcp_btn),
 	.led({led_p, led_d, led_u}),
-	.flg_sd_cd(mcp_sdcd),
-	.flg_present(mcp_en),
-	.flg_mode(mcp_mode),
+	.sd_cd(mcp_sdcd),
 
 	.scl(IO_SCL),
 	.sda(IO_SDA)
 );
-
-`ifndef MISTER_DUAL_SDRAM
-wire io_dig = mcp_en ? mcp_mode : SW[3];
-wire av_dis = io_dig | VGA_EN;
-`endif
 
 
 reg btn_user, btn_osd;
@@ -1363,16 +1355,11 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 
 	wire cs1 = (vga_fb | vga_scaler) ? vgas_cs : vga_cs;
 
-	assign VGA_VS = av_dis ? 1'bZ      :((((vga_fb | vga_scaler) ? ~vgas_vs : ~vga_vs) | csync_en) ^ VS[12]);
-	assign VGA_HS = av_dis ? 1'bZ      : (((vga_fb | vga_scaler) ? (csync_en ? ~vgas_cs : ~vgas_hs) : (csync_en ? ~vga_cs : ~vga_hs)) ^ HS[12]);
-	assign VGA_R  = av_dis ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[23:18] : vga_o[23:18];
-	assign VGA_G  = av_dis ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[15:10] : vga_o[15:10];
-	assign VGA_B  = av_dis ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[7:2]   : vga_o[7:2]  ;
-
-	// CRT_TEST_05: extra two bits/channel used by 24-bit analog boards.
-	wire [1:0] vga_r = (vga_fb | vga_scaler) ? vgas_o[17:16] : vga_o[17:16];
-	wire [1:0] vga_g = (vga_fb | vga_scaler) ? vgas_o[9:8]   : vga_o[9:8];
-	wire [1:0] vga_b = (vga_fb | vga_scaler) ? vgas_o[1:0]   : vga_o[1:0];
+	assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      :((((vga_fb | vga_scaler) ? ~vgas_vs : ~vga_vs) | csync_en) ^ VS[12]);
+	assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      : (((vga_fb | vga_scaler) ? (csync_en ? ~vgas_cs : ~vgas_hs) : (csync_en ? ~vga_cs : ~vga_hs)) ^ HS[12]);
+	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[23:18] : vga_o[23:18];
+	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[15:10] : vga_o[15:10];
+	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[7:2]   : vga_o[7:2]  ;
 `endif
 
 
